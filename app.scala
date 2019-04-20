@@ -23,25 +23,25 @@ class DB{
 
     return insumos
   }
-/*
+
   def cargarPedidos(pedidos : List[Pedido], nombreSucursal : String) : Boolean = {
     val pw = new PrintWriter("DB/pedidos/" + nombreSucursal + ".txt")
 
     for(pedido <- pedidos){
       var cedula = pedido.getCedula
       if(pedido.getInsumo.isInstanceOf[Alimento]){
-        var alimento : Alimento = pedido.getInsumo
-        pw.println(cedula+":"+pedido.getInsumo.getCodigo+":"+pedido.getInsumo.getLabel+":"+pedido.getInsumo.getCostoProduc+":"+pedido.getInsumo.getCostoVenta+":"+pedido.getInsumo.getCostoProducAgrandado+":"+pedido.getInsumo.getCostoVentaAgrandado+":"+pedido.getInsumo.getCategoria+":"+pedido.getInsumo.getRestricciones+":"+pedido.getInsumo.getAgrandado)
+        var alimento : Alimento = pedido.getInsumo.asInstanceOf[Alimento]
+        pw.println(cedula+":"+alimento.getCodigo+":"+alimento.getLabel+":"+alimento.getCostoProduc+":"+alimento.getCostoVenta+":"+alimento.getCostoProducAgrandado+":"+alimento.getCostoVentaAgrandado+":"+alimento.getCategoria+":"+alimento.getRestricciones+":"+alimento.getAgrandado)
       }
       else{
-        var util = pedido.getInsumo
+        var util : Util = pedido.getInsumo.asInstanceOf[Util]
         pw.println(cedula+":"+util.getCodigo+":"+util.getLabel+":"+util.getCostoProduc+":"+util.getCostoVenta)
       }
     }
     pw.close
     return true
   }
-*/
+
 
   def descargarAlimento() : List[Alimento] = {
     var insumos : List[Alimento] = Nil
@@ -109,6 +109,7 @@ class Pedido(cedula : String, insumo : Insumo){
   def setInsumo(insumo : Insumo) = _insumo = insumo
   def getCedula = _cedula
   def getInsumo = _insumo
+
 }
 
 
@@ -256,7 +257,7 @@ class Caja(nombreSucursal : String){
     if(db.cargarPedidos(_pedidos, _nombreSucursal)) return true
     else return false
   }
-/*
+
   def quitarPedido(insumo : Insumo, cedula : String) : Boolean = {
     var pedido = new Pedido(cedula, insumo)
     val index = _pedidos.indexOf(pedido)
@@ -265,7 +266,11 @@ class Caja(nombreSucursal : String){
     _pedidos = _pedidos.filter(_== pedido)
     db.cargarPedidos(_pedidos, _nombreSucursal)
   }
-  */
+
+  def mostrarCatalogo : List[Alimento] = _catalogo
+
+
+
 }
 
 
@@ -278,5 +283,9 @@ object Pruebas{
     for(i <- insumos){
       println(i.getCodigo)
     }
+
+
+    val format = new SimpleDateFormat("d-M-y")
+    println(format.format(Calendar.getInstance().getTime()))
   }
 }
