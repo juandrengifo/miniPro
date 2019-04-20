@@ -23,18 +23,25 @@ class DB{
 
     return insumos
   }
-  /*
-  def cargarPedidos(insumos : List[Insumo]) : Boolean = {
-    val pw = new PrintWriter("DB/insumos.txt")
+/*
+  def cargarPedidos(pedidos : List[Pedido], nombreSucursal : String) : Boolean = {
+    val pw = new PrintWriter("DB/pedidos/" + nombreSucursal + ".txt")
 
-    for(insumo <- insumos){
-      if(insumo.isInstanceOf(Alimento)){
-        pw.println()
+    for(pedido <- pedidos){
+      var cedula = pedido.getCedula
+      if(pedido.getInsumo.isInstanceOf[Alimento]){
+        var alimento : Alimento = pedido.getInsumo
+        pw.println(cedula+":"+pedido.getInsumo.getCodigo+":"+pedido.getInsumo.getLabel+":"+pedido.getInsumo.getCostoProduc+":"+pedido.getInsumo.getCostoVenta+":"+pedido.getInsumo.getCostoProducAgrandado+":"+pedido.getInsumo.getCostoVentaAgrandado+":"+pedido.getInsumo.getCategoria+":"+pedido.getInsumo.getRestricciones+":"+pedido.getInsumo.getAgrandado)
+      }
+      else{
+        var util = pedido.getInsumo
+        pw.println(cedula+":"+util.getCodigo+":"+util.getLabel+":"+util.getCostoProduc+":"+util.getCostoVenta)
       }
     }
     pw.close
+    return true
   }
-  */
+*/
 
   def descargarAlimento() : List[Alimento] = {
     var insumos : List[Alimento] = Nil
@@ -53,8 +60,8 @@ class DB{
     return insumos
   }
 
-  def descargarPedidos(nombreSucursal : String) : List[(String, Insumo)] = {
-    var pedidos : List[(String, Insumo)] = Nil
+  def descargarPedidos(nombreSucursal : String) : List[Pedido] = {
+    var pedidos : List[Pedido] = Nil
     var source = Source.fromFile("DB/pedidos/" + nombreSucursal + ".txt")
     var lines = source.getLines
     var aux : List[String] = lines.toList
@@ -64,11 +71,13 @@ class DB{
         var alimento = new Alimento(parsing(1), parsing(4).toDouble, parsing(3).toDouble, parsing(2), parsing(6).toDouble, parsing(5).toDouble, parsing(7))
         alimento.setAgrandado(parsing(9))
         alimento.setRestricciones(parsing(8))
-        pedidos = (parsing(0), alimento)::pedidos
+        var pedido = new Pedido(parsing(0), alimento)
+        pedidos = pedido::pedidos
       }
       else{
         var util = new Util(parsing(1), parsing(4).toDouble, parsing(3).toDouble, parsing(2))
-        pedidos = (parsing(0), util)::pedidos
+        var pedido = new Pedido(parsing(0), util)
+        pedidos = pedido::pedidos
       }
     }
     source.close
@@ -92,12 +101,22 @@ class DB{
 }
 
 
+class Pedido(cedula : String, insumo : Insumo){
+  private var _cedula : String = cedula
+  private var _insumo : Insumo = insumo
+
+  def setCedula(cedula : String) = _cedula = cedula
+  def setInsumo(insumo : Insumo) = _insumo = insumo
+  def getCedula = _cedula
+  def getInsumo = _insumo
+}
+
 
 class Sucursal(nombreSucursal : String){
   private var db = new DB
   private var _precioDomicilio : Double = 3000.0
   private var _nombreSucursal : String = nombreSucursal
-//  private var _caja = new Caja(nombreSucursal)
+  private var _caja = new Caja(nombreSucursal)
   private var _historial : List[(String, Double, Double)] = db.descargarHistorial(_nombreSucursal)
   private var _insumos: List[Insumo] = db.descargarInsumos()
 
@@ -128,30 +147,33 @@ class Sucursal(nombreSucursal : String){
   }
 }
 
-abstract class Insumo(codigo : String, costoVenta : Double, costoProduc : Double, label : String){
-  protected var _codigo : String = codigo
-  protected var _costoVenta : Double = costoVenta
-  protected var _costoProduc : Double = costoProduc
-  protected var _label : String = label
+abstract class Insumo{
+  protected var _codigo : String
+  protected var _costoVenta : Double
+  protected var _costoProduc : Double
+  protected var _label : String
 
   //setters y getters
-  def getCodigo = _codigo
-  def getCostoVenta = _costoVenta
-  def getCostoProduc = _costoProduc
-  def getLabel = _label
-
-  def getCodigo(codigo : String) = _codigo = codigo
-  def getCostoVenta(costoVenta : Double) = _costoVenta = costoVenta
-  def getCostoProduc(costoProduc : Double) = _costoProduc = costoProduc
-  def getLabel(label : String) = _label = label
+  def getCodigo : String
+  def getCostoVenta : Double
+  def getCostoProduc : Double
+  def getLabel : String
+  def getCodigo(codigo : String) : Unit
+  def getCostoVenta(costoVenta : Double) : Unit
+  def getCostoProduc(costoProduc : Double) : Unit
+  def getLabel(label : String) : Unit
 }
 
-class Alimento(codigo : String, costoVenta : Double, costoProduc : Double, label : String, costoVentaAg : Double, costoProducAg : Double, categoria : String) extends Insumo(codigo, costoVenta, costoProduc, label){
+class Alimento(codigo : String, costoVenta : Double, costoProduc : Double, label : String, costoVentaAg : Double, costoProducAg : Double, categoria : String) extends Insumo{
   private var _restricciones : String = _
   private var _categoria : String = _
   private var _costoVentaAgrandado : Double = costoVentaAg
   private var _costoProducAgrandano : Double = costoProducAg
   private var _agrandado : String = _
+  protected var _codigo : String = codigo
+  protected var _costoVenta : Double = costoVenta
+  protected var _costoProduc : Double = costoProduc
+  protected var _label : String = label
 
   def setRestricciones(restricciones : String) = _restricciones = restricciones
   def getRestricciones = _restricciones
@@ -163,9 +185,30 @@ class Alimento(codigo : String, costoVenta : Double, costoProduc : Double, label
   def serCategoria(categoria : String) = _categoria = categoria
   def setAgrandado(p : String) = _agrandado = p
   def getAgrandado : String = _agrandado
+  def getCodigo = _codigo
+  def getCostoVenta = _costoVenta
+  def getCostoProduc = _costoProduc
+  def getLabel = _label
+  def getCodigo(codigo : String) = _codigo = codigo
+  def getCostoVenta(costoVenta : Double) = _costoVenta = costoVenta
+  def getCostoProduc(costoProduc : Double) = _costoProduc = costoProduc
+  def getLabel(label : String) = _label = label
 }
 
-class Util(codigo : String, costoVenta : Double, costoProduc : Double, label : String) extends Insumo(codigo, costoVenta, costoProduc, label){
+class Util(codigo : String, costoVenta : Double, costoProduc : Double, label : String) extends Insumo{
+  protected var _codigo : String = codigo
+  protected var _costoVenta : Double = costoVenta
+  protected var _costoProduc : Double = costoProduc
+  protected var _label : String = label
+
+  def getCodigo = _codigo
+  def getCostoVenta = _costoVenta
+  def getCostoProduc = _costoProduc
+  def getLabel = _label
+  def getCodigo(codigo : String) = _codigo = codigo
+  def getCostoVenta(costoVenta : Double) = _costoVenta = costoVenta
+  def getCostoProduc(costoProduc : Double) = _costoProduc = costoProduc
+  def getLabel(label : String) = _label = label
 }
 
 class Usuario(usuario : String, constrasena : String){
@@ -195,16 +238,35 @@ class Cliente(usuario : String, constrasena : String, edad : String, sexo : Stri
 
 }
 
-/*
+
 class Caja(nombreSucursal : String){
+  private var db = new DB
   private var _nombreSucursal : String = nombreSucursal
-  private var _catalogo : List[Alimento] = descargarAlimento()
-  private var _pedidos : List[(String, Insumo)] = descargarPedidos(_nombreSucursal)
+  private var _catalogo : List[Alimento] = db.descargarAlimento()
+  private var _pedidos : List[Pedido] = db.descargarPedidos(_nombreSucursal)
+
+  def setCatalogo(catalogo : List[Alimento]) = _catalogo = catalogo
+  def setPedidos(pedidos : List[Pedido]) = _pedidos = pedidos
+  def getCatalogo = _catalogo
+  def getPedidos = _pedidos
 
   def agregarPedido(insumo : Insumo, cedula : String) : Boolean = {
-
+    var pedido = new Pedido(cedula, insumo)
+    _pedidos = pedido::_pedidos
+    if(db.cargarPedidos(_pedidos, _nombreSucursal)) return true
+    else return false
   }
-*/
+/*
+  def quitarPedido(insumo : Insumo, cedula : String) : Boolean = {
+    var pedido = new Pedido(cedula, insumo)
+    val index = _pedidos.indexOf(pedido)
+    if(index == -1) return false
+
+    _pedidos = _pedidos.filter(_== pedido)
+    db.cargarPedidos(_pedidos, _nombreSucursal)
+  }
+  */
+}
 
 
 
