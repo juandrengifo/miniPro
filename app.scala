@@ -149,15 +149,17 @@ class DB(sucursal : String){
 
 
 class Sucursal(nombreSucursal : String){
-  private var db = new DB(nombreSucursal)
+  private var _db = new DB(nombreSucursal)
   private var _precioDomicilio : Double = 3000.0
   private var _nombreSucursal : String = nombreSucursal
   private var _caja = new Caja(nombreSucursal)
-  private var _historial : List[(String, Double, Double)] = db.descargarHistorial()
-  private var _insumos: List[Insumo] = db.descargarInsumos()
+  private var _historial : List[(String, Double, Double)] = _db.descargarHistorial()
+  private var _insumos: List[Insumo] = _db.descargarInsumos()
 
 
   //Setters y getters
+  def db = _db
+  def caja = _caja
   def getPrecioDomicilio() : Double = _precioDomicilio
   def setPrecioDomicilio(precio : Double) : Unit = _precioDomicilio = precio
   def getnombreSucursal() : String = _nombreSucursal
@@ -277,8 +279,7 @@ class Caja(nombreSucursal : String){
   def agregarPedido(insumo : Insumo, cedula : String) : Boolean = {
     var pedido = new Pedido(cedula, insumo)
     _pedidos = pedido::_pedidos
-    if(db.cargarPedidos(_pedidos)) return true
-    else return false
+    return db.cargarPedidos(_pedidos)
   }
 
   def quitarPedido(insumo : Insumo, cedula : String) : Boolean = {
@@ -286,6 +287,8 @@ class Caja(nombreSucursal : String){
     val index = _pedidos.indexOf(pedido)
     if(index == -1) return false
 
+    _pedidos = _pedidos.filter(_ == pedido)
+    return db.cargarPedidos(_pedidos)
   }
 
   def calcularPrecioVentaYProduccion(insumos : List[Insumo]) : (Double, Double) = {
@@ -437,61 +440,63 @@ class Administrador(nombreUsuarioI: String, contraseñaI: String) extends Usuari
     return true
   }
 
-  def cambiarPrecioVenta(insumo : Insumo, nuevoPrecio : Double){
+  def cambiarPrecioVenta(insumo : Insumo, nuevoPrecio : Double) : Boolean = {
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
     var index = insumos.indexOf(insumo)
-    if(index == -1) return false
+    if(index == -1){
+      return false
+    }
 
     var aux : Array[Insumo] = insumos.toArray
-    aux[index].setCostoVenta(nuevoPrecio)
+    aux(index).setCostoVenta(nuevoPrecio)
     insumos = aux.toList
     sucursal.db.cargarInsumos(insumos)
 
     return true
   }
 
-  def cambiarPrecioProduccion(insumo : Insumo, nuevoPrecio : Double){
+  def cambiarPrecioProduccion(insumo : Insumo, nuevoPrecio : Double) : Boolean = {
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
     var index = insumos.indexOf(insumo)
     if(index == -1) return false
 
     var aux : Array[Insumo] = insumos.toArray
-    aux[index].setCostoProduc(nuevoPrecio)
+    aux(index).setCostoProduc(nuevoPrecio)
     insumos = aux.toList
     sucursal.db.cargarInsumos(insumos)
 
     return true
   }
 
-  def cambiarPrecioVentaAgrandado(insumo : Insumo, nuevoPrecio : Double){
+  def cambiarPrecioVentaAgrandado(insumo : Insumo, nuevoPrecio : Double) : Boolean = {
     if(insumo.isInstanceOf[Util]) return false
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
     var index = insumos.indexOf(insumo)
     if(index == -1) return false
 
     var aux : Array[Insumo] = insumos.toArray
-    aux[index].asInstanceOf[Alimento].setCostoVentaAgrandado(nuevoPrecio)
+    aux(index).asInstanceOf[Alimento].setCostoVentaAgrandado(nuevoPrecio)
     insumos = aux.toList
     sucursal.db.cargarInsumos(insumos)
 
     return true
   }
 
-  def cambiarPrecioProduccionAgrandado(insumo : Insumo, nuevoPrecio : Double){
+  def cambiarPrecioProduccionAgrandado(insumo : Insumo, nuevoPrecio : Double) : Boolean = {
     if(insumo.isInstanceOf[Util]) return false
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
     var index = insumos.indexOf(insumo)
     if(index == -1) return false
 
     var aux : Array[Insumo] = insumos.toArray
-    aux[index].asInstanceOf[Alimento].setCostoProducAgrandado(nuevoPrecio)
+    aux(index).asInstanceOf[Alimento].setCostoProducAgrandado(nuevoPrecio)
     insumos = aux.toList
     sucursal.db.cargarInsumos(insumos)
 
     return true
   }
 
-  def consultarUtilerias(fecha : String){
+  def consultarUtilerias(fecha : String) : (Boolean, Double) = {
     var res : (Boolean, Double) = sucursal.obtenerUtilerias(fecha)
     return (res._1, res._2)  //El booleano de esta tupla dice si encontró la fecha o no
                             //el double es la utileria
@@ -523,7 +528,7 @@ class Cliente(nombreUsuarioI: String, contraseñaI: String, identificacionI: Str
 
 
   def pagarCuenta(dinero : Double) : Boolean = {
-    return sucursal.caja.vender(dinero, _identificacion)
+    return sucursal.caja.vender(_identificacion, dinero)
   }
 
   def agregarPedido(insumo : Insumo) : Boolean = {
@@ -532,7 +537,7 @@ class Cliente(nombreUsuarioI: String, contraseñaI: String, identificacionI: Str
 
   def verCatalogo() : List[Alimento] = sucursal.caja.getCatalogo
 
-  def consultarPedido() : List[Pedido] = sucursal.db.pedidosCliente(_identificacion)
+  def consultarPedido() : List[Insumo] = sucursal.db.pedidosCliente(_identificacion)
 }
 
 object Interfaz{
@@ -759,4 +764,3 @@ object Interfaz{
   		writer2.close()
   	}
 }
-
