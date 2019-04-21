@@ -1,8 +1,26 @@
 import scala.io.Source
 import java.io.PrintWriter
+import java.text.SimpleDateFormat
+import java.util.Calendar
 
 
-class DB{
+class DB(sucursal : String){
+  private var _sucursal = sucursal
+
+
+  def pedidosCliente(cedula : String) : List[Insumo] = {
+    var pedCliente : List[Insumo] = Nil
+    var pedidos : List[Pedido] = descargarPedidos()
+
+    for(pedido <- pedidos){
+      if(pedido.getCedula == cedula){
+        pedCliente = pedido.getInsumo::pedCliente
+      }
+    }
+
+    return pedCliente
+  }
+
   def descargarInsumos() : List[Insumo] = {
     var insumos : List[Insumo] = Nil
     var source = Source.fromFile("DB/insumos.txt")
@@ -24,8 +42,8 @@ class DB{
     return insumos
   }
 
-  def cargarPedidos(pedidos : List[Pedido], nombreSucursal : String) : Boolean = {
-    val pw = new PrintWriter("DB/pedidos/" + nombreSucursal + ".txt")
+  def cargarPedidos(pedidos : List[Pedido]) : Boolean = {
+    val pw = new PrintWriter("DB/pedidos/" + _sucursal + ".txt")
 
     for(pedido <- pedidos){
       var cedula = pedido.getCedula
@@ -60,9 +78,9 @@ class DB{
     return insumos
   }
 
-  def descargarPedidos(nombreSucursal : String) : List[Pedido] = {
+  def descargarPedidos() : List[Pedido] = {
     var pedidos : List[Pedido] = Nil
-    var source = Source.fromFile("DB/pedidos/" + nombreSucursal + ".txt")
+    var source = Source.fromFile("DB/pedidos/" + _sucursal + ".txt")
     var lines = source.getLines
     var aux : List[String] = lines.toList
     for(line <- aux){
@@ -85,9 +103,9 @@ class DB{
     return pedidos
   }
 
-  def descargarHistorial(nombreSucursal : String) : List[(String, Double, Double)] = {
+  def descargarHistorial() : List[(String, Double, Double)] = {
     var historial : List[(String, Double, Double)] = Nil
-    var source = Source.fromFile("DB/historiales/"+ nombreSucursal + ".txt")
+    var source = Source.fromFile("DB/historiales/"+ _sucursal + ".txt")
     var lines = source.getLines
     while(lines.hasNext){
       val aux  = lines.next.split(":")
@@ -96,6 +114,18 @@ class DB{
     source.close
 
     return historial
+  }
+
+  def cargarHistorial(historiales : List[(String, Double, Double)]) : Boolean = {
+    val pw = new PrintWriter("DB/historiales/" + _sucursal + ".txt")
+
+    for(historial <- historiales){
+      pw.println(historial._1+":"+historial._2.toString+":"+historial._3.toString)
+    }
+
+    pw.close()
+
+    return true
   }
 
 }
@@ -114,11 +144,11 @@ class Pedido(cedula : String, insumo : Insumo){
 
 
 class Sucursal(nombreSucursal : String){
-  private var db = new DB
+  private var db = new DB(nombreSucursal)
   private var _precioDomicilio : Double = 3000.0
   private var _nombreSucursal : String = nombreSucursal
   private var _caja = new Caja(nombreSucursal)
-  private var _historial : List[(String, Double, Double)] = db.descargarHistorial(_nombreSucursal)
+  private var _historial : List[(String, Double, Double)] = db.descargarHistorial()
   private var _insumos: List[Insumo] = db.descargarInsumos()
 
 
@@ -241,10 +271,11 @@ class Cliente(usuario : String, constrasena : String, edad : String, sexo : Stri
 
 
 class Caja(nombreSucursal : String){
-  private var db = new DB
+  private var db = new DB(nombreSucursal)
   private var _nombreSucursal : String = nombreSucursal
   private var _catalogo : List[Alimento] = db.descargarAlimento()
-  private var _pedidos : List[Pedido] = db.descargarPedidos(_nombreSucursal)
+  private var _pedidos : List[Pedido] = db.descargarPedidos()
+  private var _fechaActual = new SimpleDateFormat("d-M-y")
 
   def setCatalogo(catalogo : List[Alimento]) = _catalogo = catalogo
   def setPedidos(pedidos : List[Pedido]) = _pedidos = pedidos
@@ -254,7 +285,7 @@ class Caja(nombreSucursal : String){
   def agregarPedido(insumo : Insumo, cedula : String) : Boolean = {
     var pedido = new Pedido(cedula, insumo)
     _pedidos = pedido::_pedidos
-    if(db.cargarPedidos(_pedidos, _nombreSucursal)) return true
+    if(db.cargarPedidos(_pedidos)) return true
     else return false
   }
 
@@ -264,11 +295,69 @@ class Caja(nombreSucursal : String){
     if(index == -1) return false
 
     _pedidos = _pedidos.filter(_== pedido)
-    db.cargarPedidos(_pedidos, _nombreSucursal)
+    db.cargarPedidos(_pedidos)
   }
 
-  def mostrarCatalogo : List[Alimento] = _catalogo
+  def calcularPrecioVentaYProduccion(insumos : List[Insumo]) : (Double, Double) = {
+    var precioVenta : Double = 0
+    var precioProduccion : Double = 0
+    for(insumo <- insumos){
+      if(insumo.isInstanceOf[Alimento]){
+        var alimento : Alimento = insumo.asInstanceOf[Alimento]
+        if(alimento.getAgrandado == "si"){
+          precioVenta += alimento.getCostoVentaAgrandado
+          precioProduccion += alimento.getCostoProducAgrandado
+        }
+        else{
+          precioVenta += alimento.getCostoVenta
+          precioProduccion += alimento.getCostoProduc
+        }
+      }
+      else{
+        var util : Util = insumo.asInstanceOf[Util]
+        precioVenta += util.getCostoVenta
+        precioProduccion += util.getCostoProduc
+      }
+    }
 
+    return (precioProduccion, precioVenta)
+  }
+
+  def vender(cedula : String, dinero : Double) : Boolean = {
+    var pedidos : List[Insumo] = db.pedidosCliente(cedula)
+    var precioVentaYCosto : (Double, Double) = calcularPrecioVentaYProduccion(pedidos)
+    var precioVenta : Double = precioVentaYCosto._1
+    var precioProduccion : Double = precioVentaYCosto._2
+
+    if(precioVenta <= dinero){
+      for(pedido <- pedidos){
+        quitarPedido(pedido, cedula)
+      }
+
+      var historiales : List[(String, Double, Double)] = db.descargarHistorial()
+      var found : Boolean = false
+      var idx : Int = 0
+
+      for(historial <- historiales){
+        if(historial._1 == _fechaActual.format(Calendar.getInstance().getTime()).toString) {
+          found = true
+          var newValue = (historial._1, historial._2+precioVenta, historial._3+precioProduccion)
+          historiales = historiales.patch(idx, List(newValue), 0)
+          db.cargarHistorial(historiales)
+        }
+        idx += 1
+      }
+
+      if(!found){
+        historiales = (_fechaActual.format(Calendar.getInstance().getTime()).toString, precioVenta, precioProduccion)::historiales
+        db.cargarHistorial(historiales)
+      }
+
+
+      return true
+    }
+    else return false
+  }
 
 
 }
@@ -284,8 +373,9 @@ object Pruebas{
       println(i.getCodigo)
     }
 
-
+/*
     val format = new SimpleDateFormat("d-M-y")
-    println(format.format(Calendar.getInstance().getTime()))
+    println(format.format(Calendar.getInstance().getTime()).toString)
+*/
   }
 }
