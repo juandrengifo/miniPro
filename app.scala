@@ -6,6 +6,7 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.lang.Math
 import scala.math._
+import java.time._
 
 class DB(sucursal : String){
   private var _sucursal = sucursal
@@ -223,7 +224,7 @@ class Alimento(codigo : String, costoVenta : Double, costoProduc : Double, label
   var _costoProduc : Double = costoProduc
   var _label : String = label
   private var _restricciones : String = _
-  private var _categoria : String = _
+  private var _categoria : String = categoria
   private var _costoVentaAgrandado : Double = costoVentaAg
   private var _costoProducAgrandado : Double = costoProducAg
   private var _agrandado : String = _
@@ -285,15 +286,6 @@ class Caja(nombreSucursal : String){
     return db.cargarPedidos(_pedidos)
   }
 
-  def quitarPedido(insumo : Insumo, cedula : String) : Boolean = {
-    var pedido = new Pedido(cedula, insumo)
-    val index = _pedidos.indexOf(pedido)
-    if(index == -1) return false
-
-    _pedidos = _pedidos.filter(_ == pedido)
-    return db.cargarPedidos(_pedidos)
-  }
-
   def calcularPrecioVentaYProduccion(insumos : List[Insumo]) : (Double, Double) = {
     var precioVenta : Double = 0
     var precioProduccion : Double = 0
@@ -320,15 +312,15 @@ class Caja(nombreSucursal : String){
   }
 
   def vender(cedula : String, dinero : Double) : Boolean = {
-    var pedidos : List[Insumo] = db.pedidosCliente(cedula)
-    var precioVentaYCosto : (Double, Double) = calcularPrecioVentaYProduccion(pedidos)
+    var pedidos : List[Pedido] = db.descargarPedidos()
+    var precioVentaYCosto : (Double, Double) = calcularPrecioVentaYProduccion(db.pedidosCliente(cedula))
     var precioVenta : Double = precioVentaYCosto._1
     var precioProduccion : Double = precioVentaYCosto._2
 
     if(precioVenta <= dinero){
-      for(pedido <- pedidos){
-        quitarPedido(pedido, cedula)
-      }
+      pedidos = pedidos.filter(_.getCedula != cedula)
+      _pedidos = pedidos
+      db.cargarPedidos(pedidos)
 
       var historiales : List[(String, Double, Double)] = db.descargarHistorial()
       var found : Boolean = false
@@ -338,7 +330,7 @@ class Caja(nombreSucursal : String){
         if(historial._1 == _fechaActual.format(Calendar.getInstance().getTime()).toString) {
           found = true
           var newValue = (historial._1, historial._2+precioVenta, historial._3+precioProduccion)
-          historiales = historiales.patch(idx, List(newValue), 0)
+          historiales = historiales.updated(idx, newValue)
           db.cargarHistorial(historiales)
         }
         idx += 1
@@ -573,13 +565,11 @@ object Interfaz{
 
   	def menu(): Unit = {
   		println("Bienvenido. Por favor digite una de las siguientes opciones:")
-  		println("0. Ver clientes y administradores actuales")
   		println("1. Iniciar sesión")
   		println("2. Registrarse")
   		println("3. Salir")
   		var opc: Int = scala.io.StdIn.readInt()
   		opc match{
-  			case 0 => clear(); verClientesAdministradores(); clear(); menu()
   			case 1 => clear(); iniciarSesion(); clear(); menu()
   			case 2 => clear(); registrarse(); clear(); menu()
   			case _ => exportarUsuariosDB(); println("\nLo esperamos pronto.\n")
@@ -682,14 +672,15 @@ object Interfaz{
   def crearInsumo(administrador : Administrador) : Insumo = {
 
     var insumos : List[Insumo] = administrador.sucursal.db.descargarInsumos()
-    var codigo : String = "0"*(4-floor(log10(insumos.length))+1).toInt + insumos.length.toString
+    var codigo : String = "0"*(4-(insumos.length+1).toString.length) + (insumos.length+1).toString
     var valid = false
     var opc : String = ""
     while(!valid){
+      clear()
       println("Elija la opcion del tipo de insumo desea agregar:")
       println("1. Alimento")
       println("2. Útil")
-      var opc = scala.io.StdIn.readLine()
+      opc = scala.io.StdIn.readLine()
       if(opc == "1" || opc == "2") valid = true
     }
     opc match{
@@ -704,7 +695,7 @@ object Interfaz{
 
         valid = false
         while(!valid){
-          println("Ingrese el costo de producción")
+          println("Ingrese el costo de producción:")
           costoProd = scala.io.StdIn.readLine()
           if(esNumero(costoProd)) valid = true
         }
@@ -730,10 +721,10 @@ object Interfaz{
           if(esNumero(costoVentaAg)) valid = true
         }
 
-        println("Ingrese el costo de producción")
+        println("Ingrese la categoría a la que pertenece el alimento")
         var categoria = scala.io.StdIn.readLine()
 
-        var nuevoInsumo = new Alimento(codigo, costoVenta.toDouble, costoProd.toDouble, nombre, costoVentaAg.toDouble, costoProdAg.toDouble, categoria)
+        var nuevoInsumo = new Alimento(codigo, costoVenta.toDouble, costoProd.toDouble, nombre, costoProdAg.toDouble, costoVentaAg.toDouble, categoria)
         return nuevoInsumo
       }
       case "2" => {
@@ -766,6 +757,7 @@ object Interfaz{
 	def funcionalidadesAdministrador(administrador: Administrador): Unit = {
 		println("Usuario: " + administrador.nombreUsuario)
 		println("Sucursal: " + administrador.sucursal.getnombreSucursal)
+    println("")
 		println("Digite lo que desea realizar: ")
 		println("1. Agregar insumo")
 		println("2. Quitar insumo")
@@ -776,6 +768,7 @@ object Interfaz{
     var valid : Boolean = false
 		opc match{
 			case "1" => {
+        clear()
         var nuevoInsumo = crearInsumo(administrador)
         if(administrador.agregarInsumo(nuevoInsumo)) println("Se ha agregado el insumo con éxito")
         else println("No se ha podido agregar el insumo")
@@ -888,27 +881,34 @@ object Interfaz{
   funcionalidadesAdministrador(administrador)
   }
 
-  def imprimirCatalogo(catalogo : List[Alimento]) : Unit = {
+  def imprimirCatalogo(c : List[Alimento]) : Unit = {
+    var catalogo = c.sortWith(_.getCategoria < _.getCategoria)
+    println("%2s%18s%19s%18s".format("", "", " Normal", " Agrandado"))
+    println("")
     println("-> " + catalogo.head.getCategoria)
     var i = 1
     var anterior = catalogo.head.getCategoria
-    println(i.toString + ". " + catalogo.head.getLabel)
+    println("%2s.%18s%18s%18s".format(i, catalogo.head.getLabel, catalogo.head.getCostoVenta, catalogo.head.getCostoVentaAgrandado))
     var aux = catalogo.tail
 
     for(alimento <- aux){
+      i += 1
       if(alimento.getCategoria != anterior){
+        println("")
         println("-> " + alimento.getCategoria)
         anterior = alimento.getCategoria
       }
-      println(i.toString + ". " + alimento.getLabel)
+      println("%2s.%18s%18s%18s".format(i, alimento.getLabel, alimento.getCostoVenta, alimento.getCostoVentaAgrandado))
     }
+
+    println("")
+    println("")
   }
 
 	def funcionalidadesCliente(cliente: Cliente): Unit = {
 		println("Usuario: " + cliente.nombreUsuario)
 		println("Sucursal: " + cliente.sucursal.getnombreSucursal)
-		var opc: String = scala.io.StdIn.readLine()
-    var valid = false
+    println("")
     println("Seleccione una de las siguientes opciones:")
     println("1. Pagar la cuenta")
     println("2. Agregar un pedido")
@@ -916,10 +916,15 @@ object Interfaz{
     println("4. consultar el carrito de pedidos")
     println("5. Cerrar sesión")
 
+    var opc: String = scala.io.StdIn.readLine()
+    var valid = false
 
 
     opc match{
       case "1" => {
+        clear()
+        println("El valor a pagar es: ")
+        println(cliente.sucursal.caja.calcularPrecioVentaYProduccion(cliente.sucursal.db.pedidosCliente(cliente.identificacion))._1.toString)
         valid = false
         var dinero = ""
         while(!valid){
@@ -929,11 +934,15 @@ object Interfaz{
         }
         if(cliente.pagarCuenta(dinero.toDouble)) println("Se ha pagado la cuenta exitosamente. !Vuelve pronto!")
         else println("El monto de dinero es insufuciente")
+        println("Presiona una tecla para continuar")
+        var daenerys = scala.io.StdIn.readLine()
       }
       case "2" =>{
         var adicion = true
         while(adicion){
+          clear()
           var catalogo = cliente.verCatalogo()
+          catalogo = catalogo.sortWith(_.getCategoria < _.getCategoria)
           imprimirCatalogo(catalogo)
           println("Seleccione una opción del catálogo:")
           var opc = scala.io.StdIn.readLine()
@@ -965,26 +974,57 @@ object Interfaz{
             println("Ingresa tus restricciones:")
             var restriccion = scala.io.StdIn.readLine()
             pedido.setRestricciones(restriccion)
+            clear()
           }
 
-          if(cliente.agregarPedido(pedido)) println("Pedido agregado con exitosamente")
-          else println("No se pudo agregar el pedido")
+          if(cliente.agregarPedido(pedido)){
+            println("El pedio ha sido agregado exitosamente")
+
+            valid = false
+            var op = ""
+            while(!valid){
+              println("¿Desea agregar adiciones?")
+              println("1. Sí")
+              println("2. No")
+              op = scala.io.StdIn.readLine()
+              if(op == "1" || op == "2") valid = true
+            }
+            if(op == "2") adicion = false
+          }
+          else{
+            println("No se pudo agregar el pedido")
+            funcionalidadesCliente(cliente)
+          }
         }
       }
-      case "3" => imprimirCatalogo(cliente.verCatalogo())
+      case "3" => {
+        clear()
+        imprimirCatalogo(cliente.verCatalogo())
+        println("Presiona cualquier tecla para seguir")
+        var a = scala.io.StdIn.readLine
+      }
       case "4" =>{
+        clear()
         println("Tus pedidos son:")
         var pedidos = cliente.consultarPedido()
         var total : Double = cliente.sucursal.caja.calcularPrecioVentaYProduccion(pedidos)._1
         for(pedido <- pedidos){
-          println("-> " + pedido.getLabel)
+          print("-> " + pedido.getLabel)
+          if(pedido.asInstanceOf[Alimento].getRestricciones != "null") println(" " + pedido.asInstanceOf[Alimento].getRestricciones)
+          else println("")
         }
 
         println("Total: " + total)
+        println("Presiona cualquier tecla para seguir")
+        var a = scala.io.StdIn.readLine()
       }
-      case "5" => menu()
-      case _ => funcionalidadesCliente(cliente)
+      case "5" => clear(); menu()
+      case _ => {
+        clear()
+        funcionalidadesCliente(cliente)
+      }
     }
+    clear()
     funcionalidadesCliente(cliente)
 	}
 
@@ -1016,6 +1056,43 @@ object Interfaz{
   		}
 	}
 
+	def existeUsuario(nombreUsuario: String, identificacion: String, tipoUsuario: String): Boolean = {
+		if(tipoUsuario == "administrador"){
+	  		restaurante.administradores.foreach{
+	  			administrador => {
+	  				if(administrador.nombreUsuario == nombreUsuario){
+	  					return true
+	  				}
+	  			}
+	  		}
+	  		restaurante.clientes.foreach{
+	  			cliente => {
+	  				if(cliente.nombreUsuario == nombreUsuario){
+	  					return true
+	  				}
+	  			}
+	  		}
+	  		return false
+		}
+		else{
+	  		restaurante.administradores.foreach{
+	  			administrador => {
+	  				if(administrador.nombreUsuario == nombreUsuario){
+	  					return true
+	  				}
+	  			}
+	  		}
+	  		restaurante.clientes.foreach{
+	  			cliente => {
+	  				if(cliente.identificacion == identificacion){
+	  					return true
+	  				}
+	  			}
+	  		}
+	  		return false
+		}
+	}
+
   	def registrarseAdministrador(): Unit = {
   		println("REGISTRARSE\n")
   		println("Nombre de usuario: ")
@@ -1024,12 +1101,30 @@ object Interfaz{
   		var contraseña: String = scala.io.StdIn.readLine()
   		println("Verificar contraseña: ")
   		var contraseña2: String = scala.io.StdIn.readLine()
-  		if(contraseña == contraseña2){
-  			restaurante.registrarse(nombreUsuario, contraseña, "N/A", 0, "N/A", "N/A", "administrador")
+  		if(!existeUsuario(nombreUsuario, "N/A", "administrador")){
+  			if(contraseña == contraseña2){
+  				restaurante.registrarse(nombreUsuario, contraseña, "N/A", 0, "N/A", "N/A", "administrador")
+  			}
+  			else{
+  				println("Las contraseñas no coinciden. Por favor digite lo que desea realizar: ")
+  				println("1. Volver a intentar")
+  				println("2. Regreasar al menú")
+  				var opc: Int = scala.io.StdIn.readInt()
+  				opc match{
+  					case 1 => clear(); registrarseAdministrador()
+  					case _ => ;
+  				}
+  			}
   		}
   		else{
-  			clear()
-  			registrarseAdministrador()
+  			println("El usuario ingresado ya existe. Por favor digite lo que desea realizar: ")
+  			println("1. Volver a intentar")
+  			println("2. Regreasar al menú")
+  			var opc: Int = scala.io.StdIn.readInt()
+  			opc match{
+  				case 1 => clear(); registrarseAdministrador()
+  				case _ => ;
+  			}
   		}
   	}
 
@@ -1047,7 +1142,19 @@ object Interfaz{
   		var genero: String = scala.io.StdIn.readLine()
   		println("Número de celular: ")
   		var numCelular: String = scala.io.StdIn.readLine()
-  		restaurante.registrarse(nombreUsuario, contraseña, identificacion, edad, genero, numCelular, "cliente")
+  		if(!existeUsuario(nombreUsuario, identificacion, "cliente")){
+  			restaurante.registrarse(nombreUsuario, contraseña, identificacion, edad, genero, numCelular, "cliente")
+  		}
+  		else{
+  			println("El usuario ingresado ya existe. Por favor digite lo que desea realizar: ")
+  			println("1. Volver a intentar")
+  			println("2. Regreasar al menú")
+  			var opc: Int = scala.io.StdIn.readInt()
+  			opc match{
+  				case 1 => clear(); registrarseAdministrador()
+  				case _ => ;
+  			}
+  		}
   	}
 
   	def registrarse(): Unit = {
