@@ -100,8 +100,8 @@ class DB(sucursal : String){
     var aux : List[String] = lines.toList
     for(line <- aux){
       var parsing = line.split(":")
-      if(parsing.length == 7){
-        var alimento = new Alimento(parsing(0), parsing(3).toDouble, parsing(2).toDouble, parsing(1), parsing(5).toDouble, parsing(4).toDouble, parsing(6))
+      if(parsing.length == 6){
+        var alimento = new Alimento(parsing(0), parsing(3).toDouble, parsing(2).toDouble, parsing(1), parsing(5).toDouble, parsing(4).toDouble, parsing(5))
         insumos = alimento::insumos
       }
       else{
@@ -119,9 +119,9 @@ class DB(sucursal : String){
     for(insumo <- insumos){
       if(insumo.isInstanceOf[Alimento]){
         var alimento : Alimento = insumo.asInstanceOf[Alimento]
-        pw.println(alimento.getCodigo+":"+alimento.getLabel+":"+alimento.getCostoProduc+":"+alimento.getCostoVenta+":"+alimento.getCostoVentaAgrandado+":"+alimento.getCostoProducAgrandado)
+        pw.println(alimento.getCodigo+":"+alimento.getLabel+":"+alimento.getCostoProduc+":"+alimento.getCostoVenta+":"+alimento.getCostoProducAgrandado+":"+alimento.getCostoVentaAgrandado)
       }
-      else{
+      else if(insumo.isInstanceOf[Util]){
         pw.println(insumo.getCodigo+":"+insumo.getLabel+":"+insumo.getCostoProduc+":"+insumo.getCostoVenta)
       }
     }
@@ -182,7 +182,7 @@ class Sucursal(nombreSucursal : String){
     for(registro <- _historial){
       if(registro._1 == fecha){
         ok = true
-        utilerias = registro._2-registro._3
+        utilerias = registro._3-registro._2
       }
     }
 
@@ -421,6 +421,7 @@ class Administrador(nombreUsuarioI: String, contraseñaI: String) extends Usuari
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
     insumos = insumo::insumos
     sucursal.db.cargarInsumos(insumos)
+    sucursal.setInsumos(insumos)
     return true
   }
 
@@ -434,7 +435,7 @@ class Administrador(nombreUsuarioI: String, contraseñaI: String) extends Usuari
     }
     if(index == -1) return false
 
-    insumos = insumos.filter(_.getCodigo == codigo)
+    insumos = insumos.filter(_.getCodigo != codigo)
     sucursal.db.cargarInsumos(insumos)
 
     return true
@@ -662,11 +663,12 @@ object Interfaz{
   def esFecha(f : String) : Boolean = {
     var i = 0
     for(x <- f.split("-").toList){
-      if(x.length != 2) return false
+      if(x.length > 2 && (i == 0 || i == 1)) return false
+      else if(x.length > 4 && i == 2) return false
       i += 1
     }
-    if(i == 3) return true
-    else return false
+    if(i > 3) return false
+    else return true
   }
 
   def crearInsumo(administrador : Administrador) : Insumo = {
@@ -761,9 +763,10 @@ object Interfaz{
 		println("Digite lo que desea realizar: ")
 		println("1. Agregar insumo")
 		println("2. Quitar insumo")
-		println("3. Cambiar precio insumo")
+		println("3. Cambiar precio de un insumo")
 		println("4. Consultar utilerias")
-		println("5. cerrar sesión")
+    println("5. Ver insumos")
+		println("6. cerrar sesión")
 		var opc: String = scala.io.StdIn.readLine()
     var valid : Boolean = false
 		opc match{
@@ -772,12 +775,20 @@ object Interfaz{
         var nuevoInsumo = crearInsumo(administrador)
         if(administrador.agregarInsumo(nuevoInsumo)) println("Se ha agregado el insumo con éxito")
         else println("No se ha podido agregar el insumo")
+
+        println("Presione cualquier tecla para continuar")
+        var a = scala.io.StdIn.readLine()
       }
       case "2" => {
+        clear()
+        imprimirInsumos(administrador.sucursal.db.descargarInsumos())
         println("Ingrese el código del insumo")
         var codigo: String = scala.io.StdIn.readLine()
         if(administrador.quitarInsumo(codigo)) println("Se ha quitado el insumo con exito")
         else println("No se ha podido quitar el insumo con exito")
+
+        println("Presione cualquier tecla para continuar")
+        var a = scala.io.StdIn.readLine()
       }
       case "3" =>{
         valid = false
@@ -815,18 +826,30 @@ object Interfaz{
               case "1" => {
                 if(administrador.cambiarPrecioVenta(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
                 else println("No se pudo cambiar el costo")
+
+                println("Presione cualquier tecla para continuar")
+                var a = scala.io.StdIn.readLine()
               }
               case "2" =>{
                 if(administrador.cambiarPrecioProduccion(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
                 else println("No se pudo cambiar el costo")
+
+                println("Presione cualquier tecla para continuar")
+                var a = scala.io.StdIn.readLine()
               }
               case "3" =>{
                 if(administrador.cambiarPrecioVentaAgrandado(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
                 else println("No se pudo cambiar el costo")
+
+                println("Presione cualquier tecla para continuar")
+                var a = scala.io.StdIn.readLine()
               }
               case "4" =>{
                 if(administrador.cambiarPrecioProduccionAgrandado(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
                 else println("No se pudo cambiar el costo")
+
+                println("Presione cualquier tecla para continuar")
+                var a = scala.io.StdIn.readLine()
               }
             }
           }
@@ -853,10 +876,16 @@ object Interfaz{
               case "1" => {
                 if(administrador.cambiarPrecioVenta(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
                 else println("No se pudo cambiar el costo")
+
+                println("Presione cualquier tecla para continuar")
+                var a = scala.io.StdIn.readLine()
               }
               case "2" => {
                 if(administrador.cambiarPrecioProduccion(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
                 else println("No se pudo cambiar el costo")
+
+                println("Presione cualquier tecla para continuar")
+                var a = scala.io.StdIn.readLine()
               }
             }
           }
@@ -866,15 +895,24 @@ object Interfaz{
       valid = false
       var fecha = ""
       while(!valid){
-        println("Digite la fecha:")
+        println("Digite la fecha en el formato d-m-a:  (Ejemplo 22-4-2019)")
         fecha = scala.io.StdIn.readLine()
         if(esFecha(fecha)) valid = true
       }
       var utileria = administrador.consultarUtilerias(fecha)
       if(utileria._1) println("Las utilerias del " + fecha + " fueron de " + utileria._2)
       else println("La fecha no se encontró en el historial")
+
+      println("Presione cualquier tecla para continuar")
+      var a = scala.io.StdIn.readLine()
     }
-    case "5" => menu()
+    case "5" => {
+      clear()
+      imprimirInsumos(administrador.sucursal.db.descargarInsumos())
+      println("Presione cualquier tecla para continuar")
+      var a = scala.io.StdIn.readLine()
+    }
+    case "6" => menu()
     case _ => funcionalidadesAdministrador(administrador)
    }
   clear()
@@ -902,6 +940,20 @@ object Interfaz{
     }
 
     println("")
+    println("")
+  }
+
+  def imprimirInsumos(i : List[Insumo]) : Unit = {
+    var insumos = i.sortWith(_.getCodigo < _.getCodigo)
+    println("%4s%22s%10s%10s%10s%10s".format("Codigo", "Nombre", "Venta", "Produccion", "Venta ag.", "Produccion ag."))
+    for(insumo <- insumos){
+      if(insumo.isInstanceOf[Alimento]){
+        println("%4s%25s%10s%10s%10s%10s".format(insumo.getCodigo, insumo.getLabel, insumo.asInstanceOf[Alimento].getCostoVenta, insumo.asInstanceOf[Alimento].getCostoProduc, insumo.asInstanceOf[Alimento].getCostoVentaAgrandado, insumo.asInstanceOf[Alimento].getCostoProducAgrandado))
+      }
+      else{
+        println("%4s%25s%10s%10s%10s%10s".format(insumo.getCodigo, insumo.getLabel, insumo.asInstanceOf[Alimento].getCostoVenta, insumo.asInstanceOf[Alimento].getCostoProduc, "--", "--"))
+      }
+    }
     println("")
   }
 
