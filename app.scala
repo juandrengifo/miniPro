@@ -4,6 +4,8 @@ import java.io.PrintWriter
 import scala.sys.process._
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.lang.Math
+import scala.math._
 
 class DB(sucursal : String){
   private var _sucursal = sucursal
@@ -127,6 +129,7 @@ class DB(sucursal : String){
 
     return true
   }
+
 
 
   def descargarAlimento() : List[Alimento] = {
@@ -429,23 +432,31 @@ class Administrador(nombreUsuarioI: String, contraseñaI: String) extends Usuari
     return true
   }
 
-  def quitarInsumo(insumo : Insumo) : Boolean = {
+  def quitarInsumo(codigo : String) : Boolean = {
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
-    var index = insumos.indexOf(insumo)
+    var index = -1
+    var i = 0
+    for(insumo <- insumos){
+      if(insumo.getCodigo == codigo) index = i
+      i += 1
+    }
     if(index == -1) return false
 
-    insumos = insumos.filter(_ == insumo)
+    insumos = insumos.filter(_.getCodigo == codigo)
     sucursal.db.cargarInsumos(insumos)
 
     return true
   }
 
-  def cambiarPrecioVenta(insumo : Insumo, nuevoPrecio : Double) : Boolean = {
+  def cambiarPrecioVenta(codigo : String, nuevoPrecio : Double) : Boolean = {
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
-    var index = insumos.indexOf(insumo)
-    if(index == -1){
-      return false
+    var index = -1
+    var i = 0
+    for(insumo <- insumos){
+      if(insumo.getCodigo == codigo) index = i
+      i += 1
     }
+    if(index == -1) return false
 
     var aux : Array[Insumo] = insumos.toArray
     aux(index).setCostoVenta(nuevoPrecio)
@@ -455,9 +466,14 @@ class Administrador(nombreUsuarioI: String, contraseñaI: String) extends Usuari
     return true
   }
 
-  def cambiarPrecioProduccion(insumo : Insumo, nuevoPrecio : Double) : Boolean = {
+  def cambiarPrecioProduccion(codigo : String, nuevoPrecio : Double) : Boolean = {
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
-    var index = insumos.indexOf(insumo)
+    var index = -1
+    var i = 0
+    for(insumo <- insumos){
+      if(insumo.getCodigo == codigo) index = i
+      i += 1
+    }
     if(index == -1) return false
 
     var aux : Array[Insumo] = insumos.toArray
@@ -468,13 +484,18 @@ class Administrador(nombreUsuarioI: String, contraseñaI: String) extends Usuari
     return true
   }
 
-  def cambiarPrecioVentaAgrandado(insumo : Insumo, nuevoPrecio : Double) : Boolean = {
-    if(insumo.isInstanceOf[Util]) return false
+  def cambiarPrecioVentaAgrandado(codigo : String, nuevoPrecio : Double) : Boolean = {
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
-    var index = insumos.indexOf(insumo)
+    var index = -1
+    var i = 0
+    for(insumo <- insumos){
+      if(insumo.getCodigo == codigo) index = i
+      i += 1
+    }
     if(index == -1) return false
 
     var aux : Array[Insumo] = insumos.toArray
+    if(aux(index).isInstanceOf[Util]) return false
     aux(index).asInstanceOf[Alimento].setCostoVentaAgrandado(nuevoPrecio)
     insumos = aux.toList
     sucursal.db.cargarInsumos(insumos)
@@ -482,13 +503,18 @@ class Administrador(nombreUsuarioI: String, contraseñaI: String) extends Usuari
     return true
   }
 
-  def cambiarPrecioProduccionAgrandado(insumo : Insumo, nuevoPrecio : Double) : Boolean = {
-    if(insumo.isInstanceOf[Util]) return false
+  def cambiarPrecioProduccionAgrandado(codigo : String, nuevoPrecio : Double) : Boolean = {
     var insumos : List[Insumo] = sucursal.db.descargarInsumos()
-    var index = insumos.indexOf(insumo)
+    var index = -1
+    var i = 0
+    for(insumo <- insumos){
+      if(insumo.getCodigo == codigo) index = i
+      i += 1
+    }
     if(index == -1) return false
 
     var aux : Array[Insumo] = insumos.toArray
+    if(aux(index).isInstanceOf[Util]) return false
     aux(index).asInstanceOf[Alimento].setCostoProducAgrandado(nuevoPrecio)
     insumos = aux.toList
     sucursal.db.cargarInsumos(insumos)
@@ -526,14 +552,9 @@ class Cliente(nombreUsuarioI: String, contraseñaI: String, identificacionI: Str
 	def genero_(nuevoGenero: String) = _genero = nuevoGenero
 	def numCelular_(nuevoNumCelular: String) = _numCelular = nuevoNumCelular
 
+  def pagarCuenta(dinero : Double) : Boolean = return sucursal.caja.vender(_identificacion, dinero)
 
-  def pagarCuenta(dinero : Double) : Boolean = {
-    return sucursal.caja.vender(_identificacion, dinero)
-  }
-
-  def agregarPedido(insumo : Insumo) : Boolean = {
-    return sucursal.caja.agregarPedido(insumo, _identificacion)
-  }
+  def agregarPedido(insumo : Insumo) : Boolean = return sucursal.caja.agregarPedido(insumo, _identificacion)
 
   def verCatalogo() : List[Alimento] = sucursal.caja.getCatalogo
 
@@ -647,6 +668,101 @@ object Interfaz{
 		}
 	}
 
+  def esNumero(x : String) = x forall Character.isDigit
+  def esFecha(f : String) : Boolean = {
+    var i = 0
+    for(x <- f.split("-").toList){
+      if(x.length != 2) return false
+      i += 1
+    }
+    if(i == 3) return true
+    else return false
+  }
+
+  def crearInsumo(administrador : Administrador) : Insumo = {
+
+    var insumos : List[Insumo] = administrador.sucursal.db.descargarInsumos()
+    var codigo : String = "0"*(4-floor(log10(insumos.length))+1).toInt + insumos.length.toString
+    var valid = false
+    var opc : String = ""
+    while(!valid){
+      println("Elija la opcion del tipo de insumo desea agregar:")
+      println("1. Alimento")
+      println("2. Útil")
+      var opc = scala.io.StdIn.readLine()
+      if(opc == "1" || opc == "2") valid = true
+    }
+    opc match{
+      case "1" => {
+        var costoProd = ""
+        var costoVenta = ""
+        var costoProdAg = ""
+        var costoVentaAg = ""
+
+        println("Ingrese el nombre del insumo: ")
+        var nombre = scala.io.StdIn.readLine()
+
+        valid = false
+        while(!valid){
+          println("Ingrese el costo de producción")
+          costoProd = scala.io.StdIn.readLine()
+          if(esNumero(costoProd)) valid = true
+        }
+
+        valid = false
+        while(!valid){
+          println("Ingrese el costo de venta")
+          costoVenta = scala.io.StdIn.readLine()
+          if(esNumero(costoVenta)) valid = true
+        }
+
+        valid = false
+        while(!valid){
+          println("Ingrese el costo de producción  de la versión agrandada")
+          costoProdAg = scala.io.StdIn.readLine()
+          if(esNumero(costoProdAg)) valid = true
+        }
+
+        valid = false
+        while(!valid){
+          println("Ingrese el costo de venta de la version agrandada")
+          costoVentaAg = scala.io.StdIn.readLine()
+          if(esNumero(costoVentaAg)) valid = true
+        }
+
+        println("Ingrese el costo de producción")
+        var categoria = scala.io.StdIn.readLine()
+
+        var nuevoInsumo = new Alimento(codigo, costoVenta.toDouble, costoProd.toDouble, nombre, costoVentaAg.toDouble, costoProdAg.toDouble, categoria)
+        return nuevoInsumo
+      }
+      case "2" => {
+        var costoProd = ""
+        var costoVenta = ""
+
+        println("Ingrese el nombre del insumo: ")
+        var nombre = scala.io.StdIn.readLine()
+
+        valid = false
+        while(!valid){
+          println("Ingrese el costo de producción")
+          costoProd = scala.io.StdIn.readLine()
+          if(esNumero(costoProd)) valid = true
+        }
+
+        valid = false
+        while(!valid){
+          println("Ingrese el costo de venta")
+          costoVenta = scala.io.StdIn.readLine()
+          if(esNumero(costoVenta)) valid = true
+        }
+
+        var nuevoInsumo = new Util(codigo, costoVenta.toDouble, costoProd.toDouble, nombre)
+        return nuevoInsumo
+      }
+    }
+  }
+
 	def funcionalidadesAdministrador(administrador: Administrador): Unit = {
 		println("Usuario: " + administrador.nombreUsuario)
 		println("Sucursal: " + administrador.sucursal.getnombreSucursal)
@@ -655,18 +771,221 @@ object Interfaz{
 		println("2. Quitar insumo")
 		println("3. Cambiar precio insumo")
 		println("4. Consultar utilerias")
-		println("5. Volver al menú")
-		var opc: Int = scala.io.StdIn.readInt()
+		println("5. cerrar sesión")
+		var opc: String = scala.io.StdIn.readLine()
+    var valid : Boolean = false
 		opc match{
-			case _ => ;
-		}
+			case "1" => {
+        var nuevoInsumo = crearInsumo(administrador)
+        if(administrador.agregarInsumo(nuevoInsumo)) println("Se ha agregado el insumo con éxito")
+        else println("No se ha podido agregar el insumo")
+      }
+      case "2" => {
+        println("Ingrese el código del insumo")
+        var codigo: String = scala.io.StdIn.readLine()
+        if(administrador.quitarInsumo(codigo)) println("Se ha quitado el insumo con exito")
+        else println("No se ha podido quitar el insumo con exito")
+      }
+      case "3" =>{
+        valid = false
+        while(!valid){
+          println("Desea cambiar el precio de un:")
+          println("1. Alimento")
+          println("2. Útil")
+          opc = scala.io.StdIn.readLine()
+          if(opc == "1" || opc == "2") valid = true
+        }
 
-	}
+        opc match{
+          case "1" =>{
+            valid = false
+            while(!valid){
+              println("Elija lo que desea modificar:")
+              println("1. Precio de venta")
+              println("2. Precio de produccion")
+              println("3. Precio de venta agrandado")
+              println("4. Precio de producción agrandado")
+              opc = scala.io.StdIn.readLine()
+              if(opc == "1" || opc == "2" || opc == "3" || opc == "4") valid = true
+            }
+            println("Ingrese el codigo del insumo")
+            var codigo = scala.io.StdIn.readLine()
+            var costo = ""
+            valid = false
+            while(!valid){
+              println("Ingrese el nuevo costo")
+              costo = scala.io.StdIn.readLine()
+              if(esNumero(costo)) valid = true
+            }
+
+            opc match{
+              case "1" => {
+                if(administrador.cambiarPrecioVenta(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
+                else println("No se pudo cambiar el costo")
+              }
+              case "2" =>{
+                if(administrador.cambiarPrecioProduccion(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
+                else println("No se pudo cambiar el costo")
+              }
+              case "3" =>{
+                if(administrador.cambiarPrecioVentaAgrandado(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
+                else println("No se pudo cambiar el costo")
+              }
+              case "4" =>{
+                if(administrador.cambiarPrecioProduccionAgrandado(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
+                else println("No se pudo cambiar el costo")
+              }
+            }
+          }
+          case "2" =>{
+            valid = false
+            while(!valid){
+              println("Elija lo que desea modificar:")
+              println("1. Precio de venta")
+              println("2. Precio de produccion")
+              opc = scala.io.StdIn.readLine()
+              if(opc == "1" || opc == "2") valid = true
+            }
+            println("Ingrese el codigo del insumo")
+            var codigo = scala.io.StdIn.readLine()
+            var costo = ""
+            valid = false
+            while(!valid){
+              println("Ingrese el nuevo costo")
+              costo = scala.io.StdIn.readLine()
+              if(esNumero(costo)) valid = true
+            }
+
+            opc match{
+              case "1" => {
+                if(administrador.cambiarPrecioVenta(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
+                else println("No se pudo cambiar el costo")
+              }
+              case "2" => {
+                if(administrador.cambiarPrecioProduccion(codigo, costo.toDouble)) println("Se cambió el costo con éxito")
+                else println("No se pudo cambiar el costo")
+              }
+            }
+          }
+        }
+      }
+    case "4" =>{
+      valid = false
+      var fecha = ""
+      while(!valid){
+        println("Digite la fecha:")
+        fecha = scala.io.StdIn.readLine()
+        if(esFecha(fecha)) valid = true
+      }
+      var utileria = administrador.consultarUtilerias(fecha)
+      if(utileria._1) println("Las utilerias del " + fecha + " fueron de " + utileria._2)
+      else println("La fecha no se encontró en el historial")
+    }
+    case "5" => menu()
+    case _ => funcionalidadesAdministrador(administrador)
+   }
+  clear()
+  funcionalidadesAdministrador(administrador)
+  }
+
+  def imprimirCatalogo(catalogo : List[Alimento]) : Unit = {
+    println("-> " + catalogo.head.getCategoria)
+    var i = 1
+    var anterior = catalogo.head.getCategoria
+    println(i.toString + ". " + catalogo.head.getLabel)
+    var aux = catalogo.tail
+
+    for(alimento <- aux){
+      if(alimento.getCategoria != anterior){
+        println("-> " + alimento.getCategoria)
+        anterior = alimento.getCategoria
+      }
+      println(i.toString + ". " + alimento.getLabel)
+    }
+  }
 
 	def funcionalidadesCliente(cliente: Cliente): Unit = {
 		println("Usuario: " + cliente.nombreUsuario)
 		println("Sucursal: " + cliente.sucursal.getnombreSucursal)
-		var opc: Int = scala.io.StdIn.readInt()
+		var opc: String = scala.io.StdIn.readLine()
+    var valid = false
+    println("Seleccione una de las siguientes opciones:")
+    println("1. Pagar la cuenta")
+    println("2. Agregar un pedido")
+    println("3. Ver el catálogo")
+    println("4. consultar el carrito de pedidos")
+    println("5. Cerrar sesión")
+
+
+
+    opc match{
+      case "1" => {
+        valid = false
+        var dinero = ""
+        while(!valid){
+          println("Por favor ingrese el dinero: ")
+          dinero = scala.io.StdIn.readLine()
+          if(esNumero(dinero)) valid = true
+        }
+        if(cliente.pagarCuenta(dinero.toDouble)) println("Se ha pagado la cuenta exitosamente. !Vuelve pronto!")
+        else println("El monto de dinero es insufuciente")
+      }
+      case "2" =>{
+        var adicion = true
+        while(adicion){
+          var catalogo = cliente.verCatalogo()
+          imprimirCatalogo(catalogo)
+          println("Seleccione una opción del catálogo:")
+          var opc = scala.io.StdIn.readLine()
+          println("¿Desea su pedido agrandado?")
+          println("1. Sí")
+          println("2. No")
+          valid = false
+          var agrandado = ""
+          while(!valid){
+            agrandado = scala.io.StdIn.readLine()
+            if(agrandado == "1" || agrandado == "2") valid = true
+          }
+          var aux : Array[Alimento] = catalogo.toArray
+          var pedido = aux(opc.toInt-1)
+
+          if(agrandado == "1") pedido.setAgrandado("si")
+          else pedido.setAgrandado("no")
+
+          println("¿Desea agregar restricciones?")
+          println("1. Sí")
+          println("2. No")
+          valid = false
+          var restricciones = ""
+          while(!valid){
+            restricciones = scala.io.StdIn.readLine()
+            if(restricciones == "1" || restricciones == "2") valid = true
+          }
+          if(restricciones == "1"){
+            println("Ingresa tus restricciones:")
+            var restriccion = scala.io.StdIn.readLine()
+            pedido.setRestricciones(restriccion)
+          }
+
+          if(cliente.agregarPedido(pedido)) println("Pedido agregado con exitosamente")
+          else println("No se pudo agregar el pedido")
+        }
+      }
+      case "3" => imprimirCatalogo(cliente.verCatalogo())
+      case "4" =>{
+        println("Tus pedidos son:")
+        var pedidos = cliente.consultarPedido()
+        var total : Double = cliente.sucursal.caja.calcularPrecioVentaYProduccion(pedidos)._1
+        for(pedido <- pedidos){
+          println("-> " + pedido.getLabel)
+        }
+
+        println("Total: " + total)
+      }
+      case "5" => menu()
+      case _ => funcionalidadesCliente(cliente)
+    }
+    funcionalidadesCliente(cliente)
 	}
 
 
